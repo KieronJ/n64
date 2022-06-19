@@ -7,15 +7,15 @@ INLINE void tlbwi(int index) {
     word start;
     word npages;
 
-if (N64CP0.tlb[index].initialized) {
-    start = N64CP0.tlb[index].entry_hi.vpn2 * 2;
-    start &= 0xfffff;
+    if (N64CP0.tlb[index].initialized) {
+        start = N64CP0.tlb[index].entry_hi.vpn2 * 2;
+        start &= 0xfffff;
 
-    npages = N64CP0.tlb[index].page_mask.mask + 1;
+        npages = N64CP0.tlb[index].page_mask.mask + 1;
 
-    logalways("fast_tlb: freeing %d pages from %d...", npages * 2, start);
-    fast_tlb_unmap_range(start, npages * 2);
-}
+        logalways("fast_tlb: freeing %d pages from %d...", npages * 2, start);
+        fast_tlb_unmap_range(start, npages * 2);
+    }
 #endif
 
     cp0_page_mask_t page_mask;
