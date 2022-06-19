@@ -65,8 +65,11 @@ INLINE bool resolve_virtual_address_32bit(word address, bus_access_t bus_access,
             logfatal("Unimplemented: translating virtual address 0x%08X in VREGION_KSSEG", address);
         // KSEG3
         case 0x7:
-            logalways("kseg3 access");
+#if 1
+            return fast_tlb_resolve_virtual_address_32bit(address, bus_access, physical);
+#else
             return tlb_probe(se_32_64(address), bus_access, physical, NULL);
+#endif
         default:
             logfatal("PANIC! should never end up here.");
     }
