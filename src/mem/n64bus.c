@@ -104,6 +104,51 @@ bool tlb_probe(dword vaddr, bus_access_t bus_access, word* paddr, int* entry_num
     return true;
 }
 
+static bus_fast_tlb_entry fast_tlb_entries[0x100000];
+
+void fast_tlb_map_range(int start, int npages, bus_fast_tlb_entry config)
+{
+    for (int i = 0; i < npages; i++) {
+        fast_tlb_entries[start + i] = config;
+        config.pfn += 1;
+    }
+}
+
+void fast_tlb_unmap_range(int start, int npages)
+{
+    memset(&fast_tlb_entries[start], 0, sizeof(bus_fast_tlb_entry) * npages);
+}
+
+bool fast_tlb_resolve_virtual_address_32bit(word vaddr, bus_access_t bus_access, word* paddr) {
+    word page = vaddr >> 12;
+    word offset = vaddr & 0xfff;
+
+    bus_fast_tlb_entry* entry = &fast_tlb_entries[page];
+
+    bool asid_match = entry->global || (N64CP0.entry_hi.asid == entry->asid);
+
+    if (!(entry->present && asid_match)) {
+        N64CP0.tlb_error = TLB_ERROR_MISS;
+        return false;
+    }
+
+    if (!(entry->valid)) {
+        N64CP0.tlb_error = TLB_ERROR_INVALID;
+        return false;
+    }
+    
+    if (bus_access == BUS_STORE && !(entry->dirty)) {
+        N64CP0.tlb_error = TLB_ERROR_MODIFICATION;
+        return false;
+    }
+
+    if (paddr) {
+        *paddr = (entry->pfn << 12) | offset;
+    }
+
+    return true;
+}
+
 word read_word_rdramreg(word address) {
     if (address % 4 != 0) {
         logfatal("Reading from RDRAM register at non-word-aligned address 0x%08X", address);

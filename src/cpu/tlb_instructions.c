@@ -3,6 +3,21 @@
 #include <mem/n64bus.h>
 
 INLINE void tlbwi(int index) {
+#if 1
+    word start;
+    word npages;
+
+if (N64CP0.tlb[index].initialized) {
+    start = N64CP0.tlb[index].entry_hi.vpn2 * 2;
+    start &= 0xfffff;
+
+    npages = N64CP0.tlb[index].page_mask.mask + 1;
+
+    logalways("fast_tlb: freeing %d pages from %d...", npages * 2, start);
+    fast_tlb_unmap_range(start, npages * 2);
+}
+#endif
+
     cp0_page_mask_t page_mask;
     page_mask = N64CP0.page_mask;
 
@@ -29,6 +44,32 @@ INLINE void tlbwi(int index) {
 
     N64CP0.tlb[index].initialized = true;
 
+#if 1
+    bus_fast_tlb_entry config;
+
+    start = N64CP0.tlb[index].entry_hi.vpn2 * 2;
+    start &= 0xfffff;
+
+    npages = N64CP0.tlb[index].page_mask.mask + 1;
+
+    config.asid = N64CP0.tlb[index].entry_hi.asid;
+    config.global = N64CP0.tlb[index].global;
+    config.present = true;
+
+    config.pfn = N64CP0.tlb[index].entry_lo0.pfn;
+    config.dirty = N64CP0.tlb[index].entry_lo0.dirty;
+    config.valid = N64CP0.tlb[index].entry_lo0.valid;
+
+    logalways("fast_tlb: setting %d pages from 0x%x...", npages, start);
+    fast_tlb_map_range(start, npages, config);
+
+    config.pfn = N64CP0.tlb[index].entry_lo1.pfn;
+    config.dirty = N64CP0.tlb[index].entry_lo1.dirty;
+    config.valid = N64CP0.tlb[index].entry_lo1.valid;
+
+    logalways("fast_tlb: setting %d pages from 0x%x...", npages, start + npages);
+    fast_tlb_map_range(start + npages, npages, config);
+#endif
 }
 
 // Loads the contents of the pfn Hi, pfn Lo0, pfn Lo1, and page mask

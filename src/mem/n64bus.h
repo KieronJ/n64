@@ -5,8 +5,23 @@
 #include <system/n64system.h>
 #include "addresses.h"
 
+typedef struct bus_fast_tlb_entry {
+    unsigned present: 1;
+    unsigned valid: 1;
+    unsigned dirty: 1;
+    unsigned global: 1;
+    unsigned asid: 8;
+    unsigned pfn: 20;
+} PACKED bus_fast_tlb_entry;
+
+ASSERTWORD(bus_fast_tlb_entry);
+
 tlb_entry_t* find_tlb_entry(dword vaddr, int* entry_number);
 bool tlb_probe(dword vaddr, bus_access_t bus_access, word* paddr, int* entry_number);
+
+void fast_tlb_map_range(int start, int npages, bus_fast_tlb_entry config);
+void fast_tlb_unmap_range(int start, int npages);
+bool fast_tlb_resolve_virtual_address_32bit(word vaddr, bus_access_t bus_access, word* paddr);
 
 #define REGION_XKUSEG 0x0000000000000000 ... 0x000000FFFFFFFFFF
 #define REGION_XBAD1  0x0000010000000000 ... 0x3FFFFFFFFFFFFFFF
@@ -39,13 +54,18 @@ INLINE bool resolve_virtual_address_32bit(word address, bus_access_t bus_access,
         case 0x1:
         case 0x2:
         case 0x3: {
+#if 1
+            return fast_tlb_resolve_virtual_address_32bit(address, bus_access, physical);
+#else
             return tlb_probe(se_32_64(address), bus_access, physical, NULL);
+#endif
         }
         // KSSEG
         case 0x6:
             logfatal("Unimplemented: translating virtual address 0x%08X in VREGION_KSSEG", address);
         // KSEG3
         case 0x7:
+            logalways("kseg3 access");
             return tlb_probe(se_32_64(address), bus_access, physical, NULL);
         default:
             logfatal("PANIC! should never end up here.");
@@ -56,7 +76,11 @@ INLINE bool resolve_virtual_address_32bit(word address, bus_access_t bus_access,
 INLINE bool resolve_virtual_address_user_32bit(word address, bus_access_t bus_access, word* physical) {
     switch (address) {
         case VREGION_KUSEG:
+#if 1
+            return fast_tlb_resolve_virtual_address_32bit(address, bus_access, physical);
+#else
             return tlb_probe(se_32_64(address), bus_access, physical, NULL);
+#endif
         default:
             N64CP0.tlb_error = TLB_ERROR_DISALLOWED_ADDRESS;
             return false;
